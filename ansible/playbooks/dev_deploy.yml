@@ -1,0 +1,58 @@
+---
+
+- hosts: hios_dev_al_jboss_ui_01
+  vars_files: ../vars/vars.yml
+  tasks:
+    - name: Stop jboss service
+      command: sh stopJboss.sh
+      async: 10
+      poll: 0
+      args:
+        chdir: "{{ jboss_home }}/bin/"
+      become: yes
+      become_user: jboss
+
+    - name: Wait for Jboss to stop
+      pause:
+        seconds: 30
+
+    - name: Verify jboss is stopped
+      shell: ps -ef | grep java
+      register: jboss_status
+      failed_when: "'-Djboss.home.dir=/opt/hios/jboss-eap-' in jboss_status.stdout"
+      changed_when: False
+      become: yes
+      become_user: jboss
+
+    - name: Deploy latest artifact
+      copy:
+        dest: "{{ deploy_path }}/{{ module_name }}"
+        src: "{{ module_src }}"
+        owner: jboss
+        group: jboss
+        mode: 0755
+      become: yes
+      become_user: jboss
+
+    - name: Start jboss service
+      shell: sh startJboss.sh &
+      async: 10
+      poll: 0
+      args:
+        chdir: "{{ jboss_home }}/bin/"
+      become: yes
+      become_user: jboss
+
+    - name: Wait for Jboss to start
+      pause:
+        minutes: 2
+
+    - name: Verify jboss started
+      shell: ps -ef | grep java
+      register: jboss_started
+      failed_when: "'-Djboss.home.dir=/opt/hios/jboss-eap-' not in jboss_started.stdout"
+      changed_when: False
+      become: yes
+      become_user: jboss
+      
+      

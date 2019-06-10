@@ -1,0 +1,8 @@
+---
+
+module_src: null
+build_id: null
+module_name: null
+deploy_path: "{{ jboss_home }}/standalone/deployments"
+jboss_home: "/opt/hios/jboss-eap-7.0"
+
