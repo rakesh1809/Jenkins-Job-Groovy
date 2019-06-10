@@ -50,22 +50,22 @@ pipeline {
                 sh "cp stagedir/build.sh . && chmod 755 ${WORKSPACE}/build.sh && ${WORKSPACE}/build.sh ${BRANCH} ${GITHUB_USER} ${GITHUB_PASSWORD} ${JOB_NAME} ${BUILD_ID}"
             }
         }
-//        stage('Fortify Scan') {
-//            agent {
-//                label 'Fortify'
-//            }
-//            steps {
-//                echo 'Checkout SCM....'
-//                git branch: '$BRANCH', credentialsId: 'e4a25c3e-1eda-4b9b-b1ea-36748dba3d42', url: 'https://github.cms.gov/HIOS/$JOB_NAME.git'
-//                sh"""
-//                    ${FORTIFY_HOME}sourceanalyzer -b ${BUILD_ID} -clean
-//                    ${FORTIFY_HOME}sourceanalyzer -b ${BUILD_ID} ${WORKSPACE}
-//                    ${FORTIFY_HOME}sourceanalyzer -b ${BUILD_ID} -scan -64 -verbose -Xmx6G -format fpr -f ${WORKSPACE}/${JOB_NAME}.fpr
-//                    ${FORTIFY_HOME}ReportGenerator -template "DeveloperWorkbook.xml" -format pdf -f ${WORKSPACE}/${JOB_NAME}.pdf -source  ${WORKSPACE}/${JOB_NAME}.fpr
-//                    aws s3 cp ${WORKSPACE}/${JOB_NAME}.pdf ${S3_BUCKET}${JOB_NAME}.pdf
-//                """
-//            }
-//        }
+      //  stage('Fortify Scan') {
+      //    agent {
+      //          label 'Fortify'
+      //      }
+      //      steps {
+      //          echo 'Checkout SCM....'
+      //          git branch: '$BRANCH', credentialsId: 'e4a25c3e-1eda-4b9b-b1ea-36748dba3d42', url: 'https://github.cms.gov/HIOS/$JOB_NAME.git'
+      //          sh"""
+      //              ${FORTIFY_HOME}sourceanalyzer -b ${BUILD_ID} -clean
+//              ${FORTIFY_HOME}sourceanalyzer -b ${BUILD_ID} ${WORKSPACE}
+      //              ${FORTIFY_HOME}sourceanalyzer -b ${BUILD_ID} -scan -64 -verbose -Xmx6G -format fpr -f ${WORKSPACE}/${JOB_NAME}.fpr
+      //              ${FORTIFY_HOME}ReportGenerator -template "DeveloperWorkbook.xml" -format pdf -f ${WORKSPACE}/${JOB_NAME}.pdf -source  ${WORKSPACE}/${JOB_NAME}.fpr
+      //              aws s3 cp ${WORKSPACE}/${JOB_NAME}.pdf ${S3_BUCKET}${JOB_NAME}.pdf
+      //          """
+      //      }
+      //    }
         stage('Post to Nexus') {
             steps {
                 sh "cp ${WORKSPACE}/release/*.zip ${WORKSPACE}/release/${BUILD_ID}.zip"
@@ -73,5 +73,18 @@ pipeline {
             }
         }
 
+        stage('Deploy to DEV') {
+            steps {
+                sh "ansible-playbook -i ${WORKSPACE}/stagedir/ansible/inventory/hosts -u ec2-user ${WORKSPACE}/stagedir/ansible/playbooks/dev_deploy.yml --extra-vars 'module_name=${MODULE} build_id=${BUILD_ID} module_src=${WORKSPACE}/${JOB_NAME}-${BUILD_ID}/build-artifacts/${MODULE} -vvvvv'"
+            }
+        }
+
+    }
+
+
+     post {
+         failure {
+              mail bcc: '', body: "<b>${JOB_NAME}</b><br>Project: ${JOB_NAME} <br>Build Number: ${BUILD_NUMBER} <br> URL of build: ${BUILD_URL}", cc: '', charset: 'UTF-8', from: '', mimeType: 'text/html', replyTo: '', subject: "ERROR CI: Project name -> ${JOB_NAME}", to: "Bernie.Pineau@SBD2.com,rakesh.ponthati@sbd2.com";
+        }
     }
 }
