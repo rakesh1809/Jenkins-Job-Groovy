@@ -1,0 +1,78 @@
+pipeline {
+    agent any
+    parameters {
+        booleanParam(name: 'RUN_DEV_JMETER', defaultValue: false, description: 'Option to run the jmeter tests in DEV environment')
+        booleanParam(name: 'RUN_TEST_JMETER', defaultValue: false, description: 'Option to run the jmeter tests in TEST environment')
+        booleanParam(name: 'RUN_IMPL_JMETER', defaultValue: false, description: 'Option to run the jmeter tests in IMPL environment')
+        booleanParam(name: 'RUN_PROD_JMETER', defaultValue: false, description: 'Option to run the jmeter tests in PROD environment')
+    }
+    environment {
+        JMETER_HOME = '/var/lib/jenkins/tools/apache-jmeter-4.0/bin'
+        JMX_HOME= "${WORKSPACE}/JMeter-Automation\\ Scripts"
+    }
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                echo 'Cleaning Workspace....'
+                sh 'rm -rf *'
+            }
+        }
+        stage('Checkout HIOS-AUTOMATION') {
+            steps {
+                echo 'Checkout SCM....'
+                git branch: 'dev', credentialsId: 'e4a25c3e-1eda-4b9b-b1ea-36748dba3d42', url: 'https://github.cms.gov/HIOS/HIOS-AUTOMATION.git'
+            }
+        }
+        stage('RUN_DEV_JMETER') {
+            when {
+                beforeAgent true
+                expression { params.RUN_DEV_JMETER == true }
+            }
+            steps {
+                sh "mkdir ${WORKSPACE}/devLogs"
+                sh "${JMETER_HOME}/jmeter -n -t ${JMX_HOME}/test.jmx -l ${WORKSPACE}/devLogs/jtllog.log -j ${WORKSPACE}/devLogs/jmeterDebug.log -JresultPath=${WORKSPACE}/devLogs >> ${WORKSPACE}/devLogs/jmetermain.log"
+            }
+        }
+        stage('RUN_TEST_JMETER') {
+            when {
+                beforeAgent true
+                expression { params.RUN_TEST_JMETER == true }
+            }
+            steps {
+                sh "mkdir ${WORKSPACE}/testLogs"
+                sh "${JMETER_HOME}/jmeter -n -t ${JMX_HOME}/Webservice-Test1-aftercutover-latest\\ -\\ with\\ DB\\ validation.jmx -l ${WORKSPACE}/testLogs/jtllog.log -j ${WORKSPACE}/testLogs/jmeterDebug.log -JresultPath=${WORKSPACE}/testLogs >> ${WORKSPACE}/testLogs/jmetermain.log"
+                sh '''
+                    #!/bin/bash
+                    check=$(awk '/Err\\:\\s+/{print $15}' ${WORKSPACE}/testLogs/jmetermain.log | sort | uniq)
+                    validate="$(echo -e "${check}" | tr -d '[:space:]')"
+                    if [ "$validate" != 0 ]; then
+                        echo "Test Failed, check jmeterDebug.log file for details."
+                        exit 1
+                    else
+                        echo "All Tests Passed."
+                    fi
+                '''
+            }
+        }
+        stage('RUN_IMPL_JMETER') {
+            when {
+                beforeAgent true
+                expression { params.RUN_IMPL_JMETER == true }
+            }
+            steps {
+                sh "mkdir ${WORKSPACE}/implLogs"
+                sh "${JMETER_HOME}/jmeter -n -t ${JMX_HOME}/Webservice-impl1-AfterCutover-CI.jmx -l ${WORKSPACE}/implLogs/jtllog.log -j ${WORKSPACE}/implLogs/jmeterDebug.log -JresultPath=${WORKSPACE}/implLogs >> ${WORKSPACE}/implLogs/jmetermain.log"
+            }
+        }
+        stage('RUN_PROD_JMETER') {
+            when {
+                beforeAgent true
+                expression { params.RUN_PROD_JMETER == true }
+            }
+            steps {
+                sh "mkdir ${WORKSPACE}/prodLogs"
+                sh "${JMETER_HOME}/jmeter -n -t ${JMX_HOME}/Webservice-Prod-AfterCutover-CI.jmx -l ${WORKSPACE}/prodLogs/jtllog.log -j ${WORKSPACE}/prodLogs/jmeterDebug.log -JresultPath=${WORKSPACE}/prodLogs >> ${WORKSPACE}/prodLogs/jmetermain.log"
+            }
+        }
+    }
+}
